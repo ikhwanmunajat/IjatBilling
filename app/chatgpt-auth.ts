@@ -38,6 +38,14 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
 export async function requireChatGPTUser(
   returnTo: string,
 ): Promise<ChatGPTUser> {
+  if (process.env.NODE_ENV === "development") {
+    return {
+      displayName: "Admin Lokal",
+      email: "admin@ijatbilling.my.id",
+      fullName: "Admin Lokal",
+    };
+  }
+
   const user = await getChatGPTUser();
   if (user) return user;
 

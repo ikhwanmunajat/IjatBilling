@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Dispatch, SetStateAction, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -44,17 +44,32 @@ const revenueData = [
   { month: "Jun", income: 132, expense: 39 }, { month: "Jul", income: 147, expense: 38 },
 ];
 const invoiceData = [{ name: "Lunas", value: 78, color: "#22c55e" }, { name: "Tertunda", value: 15, color: "#f59e0b" }, { name: "Terlambat", value: 7, color: "#ef4444" }];
-const customers = [
+const demoCustomers: Customer[] = [
   { id: "IJ-001284", name: "Rudi Purnama", service: "PPP-1284", plan: "Home 50", area: "Kemang", due: "20 Jul", bill: "Lunas", network: "Aktif" },
   { id: "IJ-001283", name: "Nadia Aulia", service: "PPP-1283", plan: "Home 30", area: "Tebet", due: "20 Jul", bill: "Tertunda", network: "Aktif" },
   { id: "IJ-001282", name: "Bima Haryanto", service: "PPP-1282", plan: "Bisnis 100", area: "Pancoran", due: "15 Jul", bill: "Terlambat", network: "Terisolir" },
-  { id: "IJ-001281", name: "Sari Maharani", service: "PPP-1281", plan: "Home 50", area: "Kemang", due: "20 Jul", bill: "Lunas", network: "Aktif" },
-  { id: "IJ-001280", name: "Dedi Kurniawan", service: "PPP-1280", plan: "Home 20", area: "Mampang", due: "25 Jul", bill: "Tertunda", network: "Aktif" },
-  { id: "IJ-001279", name: "Ayu Permatasari", service: "PPP-1279", plan: "Home 30", area: "Tebet", due: "20 Jul", bill: "Lunas", network: "Aktif" },
-  { id: "IJ-001278", name: "Fajar Nugraha", service: "PPP-1278", plan: "Bisnis 50", area: "Pasar Minggu", due: "15 Jul", bill: "Terlambat", network: "Terisolir" },
 ];
 
-type Customer = (typeof customers)[number];
+type Customer = {
+  id: string;
+  name: string;
+  service: string;
+  plan: string;
+  area: string;
+  due: string;
+  bill: string;
+  network: string;
+};
+
+type ApiCustomer = {
+  customerNumber: string;
+  name: string;
+  planId: string | null;
+  area: string | null;
+  dueDay: number;
+  pppoeUsername: string | null;
+  status: "pending" | "active" | "isolated" | "terminated";
+};
 
 type CustomerViewProps = {
   search: string;
@@ -79,18 +94,18 @@ const roleMenus: Record<string, string[]> = {
 };
 
 const modules: Record<string, { title: string; description: string; stats: string[][]; items: string[][] }> = {
-  mikrotik: { title: "MikroTik", description: "Pantau router, session, profil bandwidth, dan tindakan otomatis.", stats: [["Router online","8 / 9"],["Active PPPoE","1.284"],["Latency rata-rata","18 ms"],["Action hari ini","146"]], items: [["Core-JKT-01","Online · 12 ms","1.024 session"],["POP-Kemang","Online · 18 ms","168 session"],["POP-Tebet","Online · 21 ms","92 session"],["Backup-DC","Offline · 32 menit","0 session"]] },
-  tagihan: { title: "Tagihan", description: "Kelola siklus tagihan, jatuh tempo, diskon, dan denda pelanggan.", stats: [["Total Juli","Rp156,2 jt"],["Sudah dibayar","Rp146,8 jt"],["Belum lunas","Rp9,4 jt"],["Collection rate","94,0%"]], items: [["INV-0726-1284","Rudi Purnama","Lunas · Rp325.000"],["INV-0726-1283","Nadia Aulia","Tertunda · Rp275.000"],["INV-0726-1282","Bima Haryanto","Terlambat · Rp450.000"]] },
-  pembayaran: { title: "Pembayaran", description: "Rekonsiliasi otomatis transaksi QRIS, virtual account, e-wallet, dan loket.", stats: [["Hari ini","Rp12,4 jt"],["Transaksi","43"],["Berhasil","98,6%"],["Menunggu","2"]], items: [["TRX-88291","QRIS · Rudi Purnama","Rp325.000"],["TRX-88290","BCA VA · Sari Maharani","Rp325.000"],["TRX-88289","Loket · Ayu Permatasari","Rp275.000"]] },
-  keuangan: { title: "Keuangan", description: "Kontrol arus kas, biaya, piutang, komisi, dan laba rugi sederhana.", stats: [["Pemasukan","Rp146,8 jt"],["Pengeluaran","Rp38,2 jt"],["Arus kas bersih","Rp108,6 jt"],["Piutang","Rp9,4 jt"]], items: [["Pendapatan langganan","16 Jul 2026","+Rp12.400.000"],["Pembelian 20 ONT","15 Jul 2026","−Rp7.800.000"],["Biaya backbone","12 Jul 2026","−Rp4.500.000"]] },
-  tiket: { title: "Tiket Gangguan", description: "Prioritaskan insiden, atur SLA, dan pantau progres teknisi.", stats: [["Tiket aktif","18"],["Prioritas tinggi","3"],["SLA tercapai","96,4%"],["Rata-rata selesai","2j 14m"]], items: [["TKT-1082","LOS · Kemang","Prioritas tinggi"],["TKT-1081","Lambat · Tebet","Dalam proses"],["TKT-1080","Router restart · Mampang","Dijadwalkan"]] },
+  mikrotik: { title: "MikroTik", description: "Pantau router, session, profil bandwidth, dan tindakan otomatis.", stats: [["Router online","8 / 9"],["Active PPPoE","1.284"],["Latency rata-rata","18 ms"],["Action hari ini","146"]], items: [["Core-JKT-01","Online Â· 12 ms","1.024 session"],["POP-Kemang","Online Â· 18 ms","168 session"],["POP-Tebet","Online Â· 21 ms","92 session"],["Backup-DC","Offline Â· 32 menit","0 session"]] },
+  tagihan: { title: "Tagihan", description: "Kelola siklus tagihan, jatuh tempo, diskon, dan denda pelanggan.", stats: [["Total Juli","Rp156,2 jt"],["Sudah dibayar","Rp146,8 jt"],["Belum lunas","Rp9,4 jt"],["Collection rate","94,0%"]], items: [["INV-0726-1284","Rudi Purnama","Lunas Â· Rp325.000"],["INV-0726-1283","Nadia Aulia","Tertunda Â· Rp275.000"],["INV-0726-1282","Bima Haryanto","Terlambat Â· Rp450.000"]] },
+  pembayaran: { title: "Pembayaran", description: "Rekonsiliasi otomatis transaksi QRIS, virtual account, e-wallet, dan loket.", stats: [["Hari ini","Rp12,4 jt"],["Transaksi","43"],["Berhasil","98,6%"],["Menunggu","2"]], items: [["TRX-88291","QRIS Â· Rudi Purnama","Rp325.000"],["TRX-88290","BCA VA Â· Sari Maharani","Rp325.000"],["TRX-88289","Loket Â· Ayu Permatasari","Rp275.000"]] },
+  keuangan: { title: "Keuangan", description: "Kontrol arus kas, biaya, piutang, komisi, dan laba rugi sederhana.", stats: [["Pemasukan","Rp146,8 jt"],["Pengeluaran","Rp38,2 jt"],["Arus kas bersih","Rp108,6 jt"],["Piutang","Rp9,4 jt"]], items: [["Pendapatan langganan","16 Jul 2026","+Rp12.400.000"],["Pembelian 20 ONT","15 Jul 2026","âˆ’Rp7.800.000"],["Biaya backbone","12 Jul 2026","âˆ’Rp4.500.000"]] },
+  tiket: { title: "Tiket Gangguan", description: "Prioritaskan insiden, atur SLA, dan pantau progres teknisi.", stats: [["Tiket aktif","18"],["Prioritas tinggi","3"],["SLA tercapai","96,4%"],["Rata-rata selesai","2j 14m"]], items: [["TKT-1082","LOS Â· Kemang","Prioritas tinggi"],["TKT-1081","Lambat Â· Tebet","Dalam proses"],["TKT-1080","Router restart Â· Mampang","Dijadwalkan"]] },
   teknisi: { title: "Teknisi", description: "Jadwalkan tugas, pantau lokasi, dan nilai penyelesaian pekerjaan.", stats: [["Teknisi aktif","12"],["Bertugas","8"],["Tugas hari ini","26"],["Selesai","18"]], items: [["Arya Pratama","Area Kemang","3 tugas aktif"],["Doni Saputra","Area Tebet","2 tugas aktif"],["Rizky Maulana","Area Mampang","3 tugas aktif"]] },
-  inventaris: { title: "Inventaris", description: "Pantau stok perangkat dan material dari gudang hingga teknisi.", stats: [["Total item","2.846"],["Nilai stok","Rp184,6 jt"],["Stok menipis","7 item"],["Dipinjam teknisi","46"]], items: [["ONT HG6145F","Gudang pusat","42 unit"],["Kabel dropcore","Gudang pusat","2.140 meter"],["Fast connector","Gudang cabang","18 unit · menipis"]] },
-  laporan: { title: "Laporan", description: "Bangun laporan operasional dan keuangan sesuai periode serta cabang.", stats: [["Laporan tersimpan","24"],["Dibuat bulan ini","8"],["Terjadwal","5"],["Ekspor terbaru","Hari ini"]], items: [["Laporan pendapatan Juli","PDF · XLSX","Diperbarui 5 menit lalu"],["Tunggakan per area","XLSX","Diperbarui 1 jam lalu"],["Kinerja teknisi","PDF","Diperbarui kemarin"]] },
+  inventaris: { title: "Inventaris", description: "Pantau stok perangkat dan material dari gudang hingga teknisi.", stats: [["Total item","2.846"],["Nilai stok","Rp184,6 jt"],["Stok menipis","7 item"],["Dipinjam teknisi","46"]], items: [["ONT HG6145F","Gudang pusat","42 unit"],["Kabel dropcore","Gudang pusat","2.140 meter"],["Fast connector","Gudang cabang","18 unit Â· menipis"]] },
+  laporan: { title: "Laporan", description: "Bangun laporan operasional dan keuangan sesuai periode serta cabang.", stats: [["Laporan tersimpan","24"],["Dibuat bulan ini","8"],["Terjadwal","5"],["Ekspor terbaru","Hari ini"]], items: [["Laporan pendapatan Juli","PDF Â· XLSX","Diperbarui 5 menit lalu"],["Tunggakan per area","XLSX","Diperbarui 1 jam lalu"],["Kinerja teknisi","PDF","Diperbarui kemarin"]] },
 };
 
 function StatCard({ icon: Icon, label, value, trend, tone = "blue" }: { icon: typeof Users; label: string; value: string; trend: string; tone?: string }) {
-  return <article className="dash-stat"><span className={`dash-stat-icon ${tone}`}><Icon /></span><div><small>{label}</small><strong>{value}</strong><em className={trend.startsWith("−") ? "down" : ""}>{trend.startsWith("−") ? <ArrowDownRight /> : <ArrowUpRight />}{trend}</em></div></article>;
+  return <article className="dash-stat"><span className={`dash-stat-icon ${tone}`}><Icon /></span><div><small>{label}</small><strong>{value}</strong><em className={trend.startsWith("âˆ’") ? "down" : ""}>{trend.startsWith("âˆ’") ? <ArrowDownRight /> : <ArrowUpRight />}{trend}</em></div></article>;
 }
 
 export default function DashboardApp({ section: sectionProp, displayName = "Andika Pratama", demo = false }: { section?: string; displayName?: string; demo?: boolean }) {
@@ -98,6 +113,18 @@ export default function DashboardApp({ section: sectionProp, displayName = "Andi
   const section = sectionProp || searchParams.get("section") || "ringkasan";
   const [role, setRole] = useState(searchParams.get("role") || "Owner ISP");
   const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem("ijatbilling-theme");
+    window.requestAnimationFrame(() => setDark(savedTheme === "dark"));
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      "ijatbilling-theme",
+      dark ? "dark" : "light",
+    );
+  }, [dark]);
   const [sidebar, setSidebar] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [search, setSearch] = useState("");
@@ -106,6 +133,76 @@ export default function DashboardApp({ section: sectionProp, displayName = "Andi
   const [toast, setToast] = useState("");
   const [modal, setModal] = useState<string | null>(null);
   const [period, setPeriod] = useState("Bulan ini");
+  const [customers, setCustomers] = useState<Customer[]>(
+    demo ? demoCustomers : [],
+  );
+
+  useEffect(() => {
+    if (demo) {
+
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadCustomers() {
+      try {
+        const response = await fetch(
+          "/api/customers?organizationId=org-ijatbilling",
+        );
+        const data = (await response.json()) as {
+          customers?: ApiCustomer[];
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.error || "Gagal mengambil data pelanggan");
+        }
+
+        const planNames: Record<string, string> = {
+          "plan-10mbps": "Paket Hemat 10 Mbps",
+          "plan-20mbps": "Paket Keluarga 20 Mbps",
+          "plan-50mbps": "Paket Bisnis 50 Mbps",
+        };
+
+        const networkNames: Record<ApiCustomer["status"], string> = {
+          pending: "Pending",
+          active: "Aktif",
+          isolated: "Terisolir",
+          terminated: "Berhenti",
+        };
+
+        const rows = (data.customers || []).map((customer) => ({
+          id: customer.customerNumber,
+          name: customer.name,
+          service: customer.pppoeUsername || "-",
+          plan: customer.planId
+            ? planNames[customer.planId] || customer.planId
+            : "Belum ada paket",
+          area: customer.area || "-",
+          due: `Tanggal ${customer.dueDay}`,
+          bill: "Tertunda",
+          network: networkNames[customer.status],
+        }));
+
+        if (!cancelled) {
+          setCustomers(rows);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : "Gagal memuat pelanggan";
+          setToast(message); window.setTimeout(() => setToast(""), 3500);
+        }
+      }
+    }
+
+    void loadCustomers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [demo]);
   const allowedMenu = roleMenus[role] || roleMenus["Owner ISP"];
 
   const filteredCustomers = customers.filter(customer => {
@@ -139,7 +236,7 @@ export default function DashboardApp({ section: sectionProp, displayName = "Andi
           <div className="topbar-actions">
             {demo && <select className="role-switch" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Pilih peran demo">{demoUsers.map(user => <option key={user.role}>{user.role}</option>)}</select>}
             <button className="dash-icon" onClick={() => setDark(!dark)} aria-label="Ubah tema">{dark ? <Sun /> : <Moon />}</button>
-            <div className="notification-wrap"><button className="dash-icon notification-button" onClick={() => setNotifications(!notifications)} aria-label="Notifikasi"><Bell /><i /></button>{notifications && <div className="notification-panel"><div><strong>Notifikasi</strong><button onClick={() => setNotifications(false)}><X /></button></div>{[["Pembayaran diterima","Rudi Purnama · Rp325.000","2 menit"],["Router kembali online","POP Kemang · latency 18 ms","12 menit"],["Stok menipis","Fast connector tersisa 18 unit","1 jam"]].map(n => <article key={n[0]}><span><CheckCircle2 /></span><div><strong>{n[0]}</strong><p>{n[1]}</p></div><small>{n[2]}</small></article>)}</div>}</div>
+            <div className="notification-wrap"><button className="dash-icon notification-button" onClick={() => setNotifications(!notifications)} aria-label="Notifikasi"><Bell /><i /></button>{notifications && <div className="notification-panel"><div><strong>Notifikasi</strong><button onClick={() => setNotifications(false)}><X /></button></div>{[["Pembayaran diterima","Rudi Purnama Â· Rp325.000","2 menit"],["Router kembali online","POP Kemang Â· latency 18 ms","12 menit"],["Stok menipis","Fast connector tersisa 18 unit","1 jam"]].map(n => <article key={n[0]}><span><CheckCircle2 /></span><div><strong>{n[0]}</strong><p>{n[1]}</p></div><small>{n[2]}</small></article>)}</div>}</div>
             <button className="profile-button"><span>AP</span><div><strong>{displayName}</strong><small>{role}</small></div><ChevronDown /></button>
           </div>
         </header>
@@ -162,14 +259,14 @@ export default function DashboardApp({ section: sectionProp, displayName = "Andi
 
 function SummaryView({ notify }: { notify: (message: string) => void }) {
   return <>
-    <section className="dash-stats-grid"><StatCard icon={CircleDollarSign} label="Total pendapatan" value="Rp146,8 jt" trend="12,6%" /><StatCard icon={Users} label="Pelanggan aktif" value="1.284" trend="28 pelanggan" tone="cyan" /><StatCard icon={WalletCards} label="Tagihan belum dibayar" value="86" trend="−8,2%" tone="amber" /><StatCard icon={Router} label="Router online" value="8 / 9" trend="99,2% uptime" tone="green" /></section>
+    <section className="dash-stats-grid"><StatCard icon={CircleDollarSign} label="Total pendapatan" value="Rp146,8 jt" trend="12,6%" /><StatCard icon={Users} label="Pelanggan aktif" value="1.284" trend="28 pelanggan" tone="cyan" /><StatCard icon={WalletCards} label="Tagihan belum dibayar" value="86" trend="âˆ’8,2%" tone="amber" /><StatCard icon={Router} label="Router online" value="8 / 9" trend="99,2% uptime" tone="green" /></section>
     <section className="dash-chart-grid"><article className="dash-card revenue-card"><div className="dash-card-title"><div><strong>Tren pendapatan</strong><span>Pemasukan dan pengeluaran 6 bulan</span></div><button onClick={() => notify("Data grafik diekspor ke Excel.")}><Download /> Ekspor</button></div><div className="chart-summary"><span><small>Pemasukan</small><strong>Rp146,8 jt</strong></span><span><small>Pengeluaran</small><strong>Rp38,2 jt</strong></span></div><div className="revenue-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={revenueData} margin={{ left: -20, right: 6, top: 6 }}><defs><linearGradient id="income" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#176bff" stopOpacity={.3}/><stop offset="1" stopColor="#176bff" stopOpacity={0}/></linearGradient><linearGradient id="expense" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#16c7e8" stopOpacity={.18}/><stop offset="1" stopColor="#16c7e8" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e6ebf2"/><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#8090a5'}}/><YAxis axisLine={false} tickLine={false} tick={{fontSize: 9, fill: '#8090a5'}}/><Tooltip formatter={(v) => [`Rp${v} jt`, ""]}/><Area type="monotone" dataKey="income" stroke="#176bff" strokeWidth={3} fill="url(#income)"/><Area type="monotone" dataKey="expense" stroke="#16c7e8" strokeWidth={2} fill="url(#expense)"/></AreaChart></ResponsiveContainer></div></article><article className="dash-card invoice-card"><div className="dash-card-title"><div><strong>Status tagihan</strong><span>Periode Juli 2026</span></div><button><Ellipsis /></button></div><div className="invoice-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={invoiceData} dataKey="value" innerRadius={55} outerRadius={74} paddingAngle={4}>{invoiceData.map(entry => <Cell key={entry.name} fill={entry.color} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div><strong>1.284</strong><small>Total</small></div></div><div className="invoice-legend">{invoiceData.map(item => <span key={item.name}><i style={{background:item.color}} /><b>{item.name}</b><em>{item.value}%</em></span>)}</div></article></section>
-    <section className="dash-bottom-grid"><article className="dash-card transactions"><div className="dash-card-title"><div><strong>Transaksi terbaru</strong><span>Pembayaran yang masuk hari ini</span></div><button>Lihat semua <ChevronRight /></button></div>{[["RP","Rudi Purnama","QRIS · 16.24","Rp325.000"],["SM","Sari Maharani","BCA VA · 16.17","Rp325.000"],["AP","Ayu Permatasari","Loket · 15.58","Rp275.000"],["DK","Dedi Kurniawan","GoPay · 15.42","Rp225.000"]].map(row => <div className="transaction-row" key={row[1]}><b>{row[0]}</b><span><strong>{row[1]}</strong><small>{row[2]}</small></span><em>{row[3]}</em><i>Berhasil</i></div>)}</article><article className="dash-card operations"><div className="dash-card-title"><div><strong>Status operasional</strong><span>Pembaruan real-time</span></div></div>{[["Router & jaringan","8 dari 9 online","good"],["Tiket gangguan","18 tiket aktif","warn"],["Teknisi lapangan","8 sedang bertugas","blue"],["Stok perangkat","7 item menipis","danger"]].map(row => <div className="operation-row" key={row[0]}><span className={row[2]}>{row[0] === "Router & jaringan" ? <Wifi /> : row[0] === "Tiket gangguan" ? <TicketCheck /> : row[0] === "Teknisi lapangan" ? <Wrench /> : <AlertTriangle />}</span><div><strong>{row[0]}</strong><small>{row[1]}</small></div><ChevronRight /></div>)}</article></section>
+    <section className="dash-bottom-grid"><article className="dash-card transactions"><div className="dash-card-title"><div><strong>Transaksi terbaru</strong><span>Pembayaran yang masuk hari ini</span></div><button>Lihat semua <ChevronRight /></button></div>{[["RP","Rudi Purnama","QRIS Â· 16.24","Rp325.000"],["SM","Sari Maharani","BCA VA Â· 16.17","Rp325.000"],["AP","Ayu Permatasari","Loket Â· 15.58","Rp275.000"],["DK","Dedi Kurniawan","GoPay Â· 15.42","Rp225.000"]].map(row => <div className="transaction-row" key={row[1]}><b>{row[0]}</b><span><strong>{row[1]}</strong><small>{row[2]}</small></span><em>{row[3]}</em><i>Berhasil</i></div>)}</article><article className="dash-card operations"><div className="dash-card-title"><div><strong>Status operasional</strong><span>Pembaruan real-time</span></div></div>{[["Router & jaringan","8 dari 9 online","good"],["Tiket gangguan","18 tiket aktif","warn"],["Teknisi lapangan","8 sedang bertugas","blue"],["Stok perangkat","7 item menipis","danger"]].map(row => <div className="operation-row" key={row[0]}><span className={row[2]}>{row[0] === "Router & jaringan" ? <Wifi /> : row[0] === "Tiket gangguan" ? <TicketCheck /> : row[0] === "Teknisi lapangan" ? <Wrench /> : <AlertTriangle />}</span><div><strong>{row[0]}</strong><small>{row[1]}</small></div><ChevronRight /></div>)}</article></section>
   </>;
 }
 
 function CustomerView({ search, setSearch, statusFilter, setStatusFilter, customers, selected, setSelected, toggleAll, setModal, notify }: CustomerViewProps) {
-  return <section className="dash-card customer-table-card"><div className="table-toolbar"><div className="table-search"><Search /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama, ID, area..." /></div><div><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option>Semua status</option><option>Aktif</option><option>Terisolir</option><option>Lunas</option><option>Tertunda</option><option>Terlambat</option></select><button className="toolbar-button"><Filter />Filter</button><button className="toolbar-button" onClick={() => notify("Data pelanggan diekspor ke CSV.")}><Download />Ekspor</button></div></div>{selected.length > 0 && <div className="bulk-bar"><strong>{selected.length} pelanggan dipilih</strong><button onClick={() => notify("Tagihan bulk berhasil dibuat.")}>Buat tagihan</button><button onClick={() => notify("Perintah isolir dimasukkan ke antrean.")}>Isolir</button><button onClick={() => setSelected([])}>Batal</button></div>}<div className="table-scroll"><table className="customer-table"><thead><tr><th><input type="checkbox" checked={selected.length === customers.length && customers.length > 0} onChange={toggleAll}/></th><th>ID Pelanggan</th><th>Nama</th><th>Paket</th><th>Area</th><th>Jatuh tempo</th><th>Status tagihan</th><th>Jaringan</th><th>Aksi</th></tr></thead><tbody>{customers.map((c) => <tr key={c.id}><td><input type="checkbox" checked={selected.includes(c.id)} onChange={() => setSelected(selected.includes(c.id) ? selected.filter((x) => x !== c.id) : [...selected,c.id])}/></td><td><strong>{c.id}</strong><small>{c.service}</small></td><td><div className="customer-name"><b>{c.name.split(" ").map((x)=>x[0]).join("").slice(0,2)}</b><span>{c.name}</span></div></td><td>{c.plan}</td><td>{c.area}</td><td>{c.due}</td><td><span className={`status-pill ${c.bill.toLowerCase()}`}>{c.bill}</span></td><td><span className={`status-pill ${c.network.toLowerCase()}`}>{c.network}</span></td><td><button className="row-menu" onClick={() => setModal(`Detail ${c.name}`)}><Ellipsis /></button></td></tr>)}</tbody></table></div>{customers.length === 0 && <div className="empty-state"><Search /><h3>Data tidak ditemukan</h3><p>Ubah kata kunci atau filter untuk menemukan pelanggan.</p></div>}<div className="table-pagination"><span>Menampilkan 1–{customers.length} dari {customers.length} pelanggan</span><div><button disabled><ChevronLeft /></button><button className="active">1</button><button>2</button><button>3</button><button><ChevronRight /></button></div></div></section>;
+  return <section className="dash-card customer-table-card"><div className="table-toolbar"><div className="table-search"><Search /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama, ID, area..." /></div><div><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option>Semua status</option><option>Aktif</option><option>Terisolir</option><option>Lunas</option><option>Tertunda</option><option>Terlambat</option></select><button className="toolbar-button"><Filter />Filter</button><button className="toolbar-button" onClick={() => notify("Data pelanggan diekspor ke CSV.")}><Download />Ekspor</button></div></div>{selected.length > 0 && <div className="bulk-bar"><strong>{selected.length} pelanggan dipilih</strong><button onClick={() => notify("Tagihan bulk berhasil dibuat.")}>Buat tagihan</button><button onClick={() => notify("Perintah isolir dimasukkan ke antrean.")}>Isolir</button><button onClick={() => setSelected([])}>Batal</button></div>}<div className="table-scroll"><table className="customer-table"><thead><tr><th><input type="checkbox" checked={selected.length === customers.length && customers.length > 0} onChange={toggleAll}/></th><th>ID Pelanggan</th><th>Nama</th><th>Paket</th><th>Area</th><th>Jatuh tempo</th><th>Status tagihan</th><th>Jaringan</th><th>Aksi</th></tr></thead><tbody>{customers.map((c) => <tr key={c.id}><td><input type="checkbox" checked={selected.includes(c.id)} onChange={() => setSelected(selected.includes(c.id) ? selected.filter((x) => x !== c.id) : [...selected,c.id])}/></td><td><strong>{c.id}</strong><small>{c.service}</small></td><td><div className="customer-name"><b>{c.name.split(" ").map((x)=>x[0]).join("").slice(0,2)}</b><span>{c.name}</span></div></td><td>{c.plan}</td><td>{c.area}</td><td>{c.due}</td><td><span className={`status-pill ${c.bill.toLowerCase()}`}>{c.bill}</span></td><td><span className={`status-pill ${c.network.toLowerCase()}`}>{c.network}</span></td><td><button className="row-menu" onClick={() => setModal(`Detail ${c.name}`)}><Ellipsis /></button></td></tr>)}</tbody></table></div>{customers.length === 0 && <div className="empty-state"><Search /><h3>Data tidak ditemukan</h3><p>Ubah kata kunci atau filter untuk menemukan pelanggan.</p></div>}<div className="table-pagination"><span>Menampilkan 1â€“{customers.length} dari {customers.length} pelanggan</span><div><button disabled><ChevronLeft /></button><button className="active">1</button><button>2</button><button>3</button><button><ChevronRight /></button></div></div></section>;
 }
 
 function ModuleView({ section, notify }: { section: string; notify: (message:string)=>void }) {

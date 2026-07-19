@@ -1,16 +1,22 @@
-﻿{
+{
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ijatbilling",
   "main": "worker/index.ts",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "ijatbilling.my.id",
+      "custom_domain": true
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "ijatbilling-db",
-      "database_id": "00000000-0000-4000-8000-000000000000",
+      "database_id": "9ad9fb90-0684-4d6a-98c9-e13fbbcc69b3",
       "migrations_dir": "drizzle"
     }
   ]
 }
-
